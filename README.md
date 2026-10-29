@@ -6,7 +6,7 @@
 
 An unofficial port of **Jenny Mod (Fapcraft) 1.1.0** by Schnurri (trolmastercard) from Minecraft 1.12.2 / Forge to **Minecraft 26.3 / Fabric**. The original mod has no release for current Minecraft versions; this project brings its characters and scenes over and is open for anyone to continue.
 
-The repository contains **only the port's own code and files**. The original mod's models, animations, textures and sounds belong to its author and are **not included**. A Gradle task extracts them from your own copy of the original jar and converts them for the new engine (see [Building](#building)).
+The repository includes the port code, the converted runtime assets and a ready-to-use `jenny-mod-1.1.0+26.3.jar`. The original mod's models, animations, textures and sounds remain the property of their author.
 
 ## Status
 
@@ -40,22 +40,13 @@ Please keep it that way in forks you publish.
 - [Fabric Loader](https://fabricmc.net/use/) 0.20.1+
 - [Fabric API](https://modrinth.com/mod/fabric-api) 0.165.0+26.3
 - [GeckoLib](https://modrinth.com/mod/geckolib) 5.5.7 for Fabric 26.3
-- The original **Jenny Mod 1.1.0 for 1.12.2** jar (for building)
 
 For multiplayer the mod must be installed on the server and on every client.
 
 ## Building
 
 1. Install a Java 25 JDK (for example [Temurin](https://adoptium.net/)).
-2. Download the original **Jenny Mod 1.1.0 (Minecraft 1.12.2)** jar from the author's official page.
-3. Import its assets (once, or again after updating the converter):
-
-   ```bash
-   ./gradlew importOriginalAssets -PoriginalJar=path/to/jenny-mod-1.1.0.jar
-   ```
-
-   On Windows use `gradlew.bat`. An already extracted folder works too.
-4. Build:
+2. Build:
 
    ```bash
    ./gradlew build
@@ -91,7 +82,7 @@ src/main/java/.../sexmod/      common code: entity, actions, scene logic, networ
 src/client/java/.../client/    rendering, partner skin layer, scene camera, menus, sounds
 src/main/resources/            the port's own files: translations, spawn eggs, metadata
 gradle/original-assets.gradle  import and conversion of the original assets
-original-assets/               imported assets (git-ignored, created by the import)
+original-assets/               converted runtime assets included in the repository
 ```
 
 Main entry points: `GirlEntity` (scene state machine), `GirlActions` (menus and prices), `GirlRenderer` / `PartnerSkinLayer` (rendering and the player rig), `SceneCamera` (first-person camera), `CueSounds` (sound cues).
@@ -108,7 +99,7 @@ Optional: `-Pcamera=THIRD_PERSON_BACK`. Without `-Pautotest` none of this code r
 
 ## Contributing
 
-Pull requests and forks are welcome — especially the missing features listed above. Keep the import approach: do not commit the original mod's assets.
+Pull requests and forks are welcome — especially the missing features listed above.
 
 ## Credits
 

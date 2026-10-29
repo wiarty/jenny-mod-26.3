@@ -10,7 +10,7 @@ bin/
 # Dev client
 run/
 
-# Assets imported from the original Jenny Mod jar (not redistributed, see README)
-original-assets/
+# Build artifacts
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
+!jenny-mod-1.1.0+26.3.jar
