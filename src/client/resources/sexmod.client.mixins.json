@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"package": "com.trolmastercard.sexmod.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"CameraMixin",
+		"EntityRenderDispatcherMixin",
+		"GameRendererMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

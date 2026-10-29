@@ -1,0 +1,151 @@
+// Imports the character assets (models, animations, textures, sounds) from the original
+// Jenny Mod 1.1.0 for Minecraft 1.12.2. They are not part of this repository: download the
+// original jar yourself and run
+//
+//     gradlew importOriginalAssets -PoriginalJar=path/to/jenny-mod-1.1.0.jar
+//
+// The task also applies the conversions this port needs (see README, "What the import changes").
+
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.util.zip.ZipFile
+
+def originalAssetsDir = file('original-assets')
+
+// Characters carried over; Goblin and Kobold (child-height models) are left out on purpose.
+def CHARACTERS = ['allie', 'bee', 'bia', 'cat', 'ellie', 'galath', 'jenny', 'manglelie', 'slime']
+def EXCLUDED = ~/(?i)goblin|kobold/
+
+/** Keyframe timelines are maps keyed by timestamps ("0.0", "1.24", ...). */
+def isTimeline = { Object o ->
+    o instanceof Map && !o.isEmpty() && o.keySet().every { it ==~ /-?\d+(\.\d+)?/ }
+}
+
+/** Repairs values left by the original exporter that GeckoLib 3 tolerated and GeckoLib 5 rejects. */
+def fixValue = { String s ->
+    if (s ==~ /\s*[A-Za-z_]+\s*/) return 0                  // bare "easeInOutSine", "yaw": GeckoLib 3 read 0
+    s = s.replaceAll(/(?i)\s*[+\-]\s*ease[a-z]+\b/, '')       // "-97.0283+easeInOutSine"
+    s = s.replaceAll(/(?i)\bease[a-z]+\s*[+\-]\s*/, '')
+    s = s.replaceAll(/\s*[-+*\/]\s*\.?\s*$/, '')               // "50+."
+    s = s.replaceAll(/\bNaN\b/, '0')
+    s = s.replaceAll(/\s*[+\-]\s*(pitch|yaw)\b/, '')
+    return s.isNumber() ? new BigDecimal(s) : s
+}
+
+def fixBones
+fixBones = { Object o ->
+    if (o instanceof Map) {
+        def out = new LinkedHashMap()
+        def keys = isTimeline(o) ? o.keySet().sort { new BigDecimal(it) } : o.keySet()
+        keys.each { k -> out[k] = (k == 'easing') ? o[k] : fixBones(o[k]) }
+        // GeckoLib 3 held a channel's first keyframe value before it; GeckoLib 5 interpolates from the
+        // previous state instead, which blows up face-expression bones. Add the held value at 0.
+        if (isTimeline(o) && new BigDecimal(keys[0]) > 0) {
+            def first = out[keys[0]]
+            def vector = first instanceof Map ? (first.pre ?: first.vector ?: first.post) : first
+            if (vector instanceof Map) vector = vector.vector
+            def held = new LinkedHashMap(); held['0.0'] = [vector: vector]; held.putAll(out)
+            out = held
+        }
+        return out
+    }
+    if (o instanceof List) return o.collect { fixBones(it) }
+    if (o instanceof String) return fixValue(o)
+    return o
+}
+
+def convertAnimation = { String text ->
+    def json = new JsonSlurper().parseText(text)
+    def kept = new LinkedHashMap()
+    json.animations.each { String name, Map clip ->
+        if (name.toLowerCase().contains('rape')) return       // non-consensual clips are not ported
+        def converted = new LinkedHashMap(clip)
+        if (clip.bones) converted.bones = fixBones(clip.bones)
+        if (clip.sound_effects instanceof Map) {
+            def effects = new LinkedHashMap()
+            clip.sound_effects.keySet().sort { new BigDecimal(it) }.each { effects[it] = clip.sound_effects[it] }
+            converted.sound_effects = effects
+        }
+        kept[name] = converted
+    }
+    json.animations = kept
+    return JsonOutput.toJson(json)
+}
+
+/** Adds the first-person camera bone the original only had on some models. */
+def convertGeometry = { String text ->
+    def json = new JsonSlurper().parseText(text)
+    def bones = json['minecraft:geometry'][0].bones
+    def names = bones*.name as Set
+    if ('Head2' in names && !('boyCam' in names)) bones << [name: 'boyCam', parent: 'Head2', pivot: [0, 26.25, -19.5]]
+    return JsonOutput.toJson(json)
+}
+
+def convertSoundsJson = { String text ->
+    def json = new JsonSlurper().parseText(text)
+    def kept = json.findAll { k, v -> !(k =~ EXCLUDED) && !(JsonOutput.toJson(v) =~ EXCLUDED) }
+    return JsonOutput.prettyPrint(JsonOutput.toJson(kept))
+}
+
+tasks.register('importOriginalAssets') {
+    group = 'jenny mod'
+    description = 'Extracts and converts the original Jenny Mod 1.1.0 (1.12.2) assets; pass -PoriginalJar=<jar or extracted folder>.'
+    def source = project.findProperty('originalJar')
+    def input = source == null ? null : file(source)
+    notCompatibleWithConfigurationCache('one-off import that reads a user-supplied jar')
+    doLast {
+        if (input == null) throw new GradleException('Pass the original mod jar: gradlew importOriginalAssets -PoriginalJar=path/to/jenny.jar')
+        if (!input.exists()) throw new GradleException("Not found: $input")
+
+        // Read every entry under assets/sexmod/ (plus logo.png) from a jar or an extracted folder.
+        Map<String, byte[]> entries = [:]
+        if (input.isDirectory()) {
+            def root = new File(input, 'assets').exists() ? input : input.parentFile
+            root.eachFileRecurse { f ->
+                if (f.isFile()) entries[root.toPath().relativize(f.toPath()).toString().replace('\\', '/')] = f.bytes
+            }
+        } else {
+            new ZipFile(input).withCloseable { zip ->
+                zip.entries().each { e -> if (!e.directory) entries[e.name] = zip.getInputStream(e).bytes }
+            }
+        }
+        if (!entries.keySet().any { it.startsWith('assets/sexmod/') }) throw new GradleException("$input does not look like the Jenny Mod jar")
+
+        originalAssetsDir.deleteDir()
+        def out = { String path, byte[] data ->
+            def f = new File(originalAssetsDir, path); f.parentFile.mkdirs(); f.bytes = data
+        }
+        def count = 0
+        entries.each { String path, byte[] data ->
+            if (path =~ EXCLUDED) return
+            def m
+            if ((m = path =~ /^assets\/sexmod\/animations\/(\w+)\/(.+\.animation\.json)$/) && m[0][1] in CHARACTERS) {
+                out("assets/sexmod/geckolib/animations/${m[0][1]}/${m[0][2]}", convertAnimation(new String(data, 'UTF-8')).getBytes('UTF-8'))
+            } else if ((m = path =~ /^assets\/sexmod\/geo\/(\w+)\/(.+\.geo\.json)$/) && m[0][1] in CHARACTERS) {
+                out("assets/sexmod/geckolib/models/${m[0][1]}/${m[0][2]}", convertGeometry(new String(data, 'UTF-8')).getBytes('UTF-8'))
+            } else if ((m = path =~ /^assets\/sexmod\/textures\/entity\/(\w+)\/.+\.png$/) && m[0][1] in CHARACTERS) {
+                out(path, data)
+            } else if (path ==~ /^assets\/sexmod\/sounds\/.+\.ogg$/) {
+                out(path, data)
+            } else if (path == 'assets/sexmod/sounds.json') {
+                out(path, convertSoundsJson(new String(data, 'UTF-8')).getBytes('UTF-8'))
+            } else if (path == 'logo.png') {
+                out(path, data)
+            } else {
+                return
+            }
+            count++
+        }
+        println "Imported $count files into $originalAssetsDir"
+    }
+}
+
+sourceSets.main.resources.srcDir originalAssetsDir
+
+tasks.named('processResources') {
+    doFirst {
+        if (!new File(originalAssetsDir, 'assets/sexmod/geckolib').exists()) {
+            throw new GradleException('Original assets are missing. Run: gradlew importOriginalAssets -PoriginalJar=path/to/jenny-mod-1.1.0.jar (see README)')
+        }
+    }
+}

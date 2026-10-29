@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "sexmod",
+	"version": "${version}",
+	"name": "Jenny Mod",
+	"description": "Unofficial Fabric 26.3 port of Jenny Mod (Fapcraft) 1.1.0 by Schnurri. Adult content: 18+ only.",
+	"authors": [
+		"Schnurri (trolmastercard) - original mod"
+	],
+	"license": "MIT (port code); original assets not included",
+	"icon": "logo.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.trolmastercard.sexmod.JennyMod"
+		],
+		"client": [
+			"com.trolmastercard.sexmod.client.JennyModClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*",
+		"geckolib": ">=5.5.7"
+	},
+	"mixins": [
+		{
+			"config": "sexmod.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"contributors": [
+		"26.3 port contributors"
+	]
+}

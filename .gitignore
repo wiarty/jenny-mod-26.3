@@ -1,0 +1,16 @@
+# Gradle / IDE
+.gradle/
+build/
+out/
+.idea/
+*.iml
+.vscode/
+bin/
+
+# Dev client
+run/
+
+# Assets imported from the original Jenny Mod jar (not redistributed, see README)
+original-assets/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
